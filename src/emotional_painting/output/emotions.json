@@ -1,0 +1,145 @@
+[
+  {
+    "timestamp": 0.0,
+    "dominant_emotion": "happy",
+    "emotions": {
+      "angry": 0.0,
+      "disgust": 0.0,
+      "fear": 0.0,
+      "happy": 81.52,
+      "sad": 0.0,
+      "surprise": 0.01,
+      "neutral": 18.47
+    }
+  },
+  {
+    "timestamp": 1.0,
+    "dominant_emotion": "happy",
+    "emotions": {
+      "angry": 0.0,
+      "disgust": 0.0,
+      "fear": 0.0,
+      "happy": 67.48,
+      "sad": 0.0,
+      "surprise": 0.0,
+      "neutral": 32.52
+    }
+  },
+  {
+    "timestamp": 2.0,
+    "dominant_emotion": "happy",
+    "emotions": {
+      "angry": 0.0,
+      "disgust": 0.0,
+      "fear": 0.0,
+      "happy": 83.89,
+      "sad": 0.01,
+      "surprise": 0.0,
+      "neutral": 16.09
+    }
+  },
+  {
+    "timestamp": 3.0,
+    "dominant_emotion": "happy",
+    "emotions": {
+      "angry": 0.0,
+      "disgust": 0.0,
+      "fear": 0.0,
+      "happy": 98.38,
+      "sad": 0.0,
+      "surprise": 0.0,
+      "neutral": 1.62
+    }
+  },
+  {
+    "timestamp": 4.0,
+    "dominant_emotion": "neutral",
+    "emotions": {
+      "angry": 1.84,
+      "disgust": 0.0,
+      "fear": 9.89,
+      "happy": 33.38,
+      "sad": 8.64,
+      "surprise": 0.11,
+      "neutral": 46.14
+    }
+  },
+  {
+    "timestamp": 5.0,
+    "dominant_emotion": "neutral",
+    "emotions": {
+      "angry": 1.96,
+      "disgust": 0.0,
+      "fear": 2.34,
+      "happy": 20.02,
+      "sad": 11.37,
+      "surprise": 0.14,
+      "neutral": 64.17
+    }
+  },
+  {
+    "timestamp": 5.99,
+    "dominant_emotion": "happy",
+    "emotions": {
+      "angry": 0.0,
+      "disgust": 0.0,
+      "fear": 0.0,
+      "happy": 91.77,
+      "sad": 0.0,
+      "surprise": 0.0,
+      "neutral": 8.23
+    }
+  },
+  {
+    "timestamp": 6.99,
+    "dominant_emotion": "happy",
+    "emotions": {
+      "angry": 0.01,
+      "disgust": 0.0,
+      "fear": 0.0,
+      "happy": 82.3,
+      "sad": 0.01,
+      "surprise": 0.02,
+      "neutral": 17.67
+    }
+  },
+  {
+    "timestamp": 7.99,
+    "dominant_emotion": "happy",
+    "emotions": {
+      "angry": 0.0,
+      "disgust": 0.0,
+      "fear": 0.0,
+      "happy": 54.86,
+      "sad": 0.0,
+      "surprise": 0.0,
+      "neutral": 45.14
+    }
+  },
+  {
+    "timestamp": 8.99,
+    "dominant_emotion": "happy",
+    "emotions": {
+      "angry": 0.0,
+      "disgust": 0.0,
+      "fear": 0.02,
+      "happy": 62.18,
+      "sad": 0.01,
+      "surprise": 0.02,
+      "neutral": 37.77
+    }
+  },
+  {
+    "timestamp": 9.99,
+    "dominant_emotion": "happy",
+    "emotions": {
+      "angry": 0.0,
+      "disgust": 0.0,
+      "fear": 0.0,
+      "happy": 70.96,
+      "sad": 0.0,
+      "surprise": 0.0,
+      "neutral": 29.03
+    }
+  }
+]
