@@ -111,7 +111,6 @@ def build_detectors():
     Создаёт три детектора Tasks API в режиме IMAGE:
         pose_det  — PoseLandmarker
         hand_det  — HandLandmarker (до 2 рук)
-        face_det  — FaceLandmarker
     Вызывайте .close() после завершения работы.
     """
     BaseOptions = mp_tasks.BaseOptions
@@ -291,10 +290,10 @@ def build_dataset(samples: list, glosses: list):
     if need_extraction:
         print(f"📦 Кэш: {cached}/{len(samples)} — запускаю извлечение кейпоинтов ...")
         print("🔧 Инициализация MediaPipe Tasks API детекторов ...")
-        pose_det, hand_det, face_det = build_detectors()
+        pose_det, hand_det = build_detectors()
     else:
         print(f"✅ Все {cached} кейпоинтов уже в кэше — пропускаю MediaPipe, сразу загружаю ...")
-        pose_det = hand_det = face_det = None
+        pose_det = hand_det = None
 
     try:
         for video_path, gloss in tqdm(samples, desc="Загрузка кейпоинтов"):
@@ -307,7 +306,15 @@ def build_dataset(samples: list, glosses: list):
                     seq = np.load(cache_file)
                 else:
                     # Извлекаем через MediaPipe
-                    seq = video_to_sequence(video_path, pose_det, hand_det, face_det)
+                    seq = video_to_sequence(video_path, pose_det, hand_det)
+
+                # проверка на нули, если в видео ничего не задетектило то его просто пропускаем
+                if np.mean(seq) < 1e-6:
+                    continue  # пропускаем мусорное видео
+
+                X.append(seq)
+                y_labels.append(gloss)
+
 
                 X.append(seq)
                 y_labels.append(gloss)
@@ -317,7 +324,6 @@ def build_dataset(samples: list, glosses: list):
         if need_extraction and pose_det is not None:
             pose_det.close()
             hand_det.close()
-            face_det.close()
 
     if failed:
         print(f"⚠️  Пропущено {failed} видео из-за ошибок")
@@ -331,21 +337,23 @@ def build_dataset(samples: list, glosses: list):
 
 
 # ─── 7. МОДЕЛЬ ────────────────────────────────────────────────────────────────
-
+# ref: поменял relu параметр модели на tanh
 def build_model(num_classes: int) -> tf.keras.Model:
     model = Sequential([
-        LSTM(64,  return_sequences=True,  activation="relu",
+        LSTM(64, return_sequences=True,
              input_shape=(SEQUENCE_LEN, NUM_FEATURES)),
         Dropout(0.2),
 
-        LSTM(128, return_sequences=True,  activation="relu"),
-        Dropout(0.2),
+        LSTM(128, return_sequences=True),
+        Dropout(0.3),
 
-        LSTM(64,  return_sequences=False, activation="relu"),
-        Dropout(0.2),
+        LSTM(64, return_sequences=False),
+        Dropout(0.3),
+
+        Dense(128, activation="relu"),
+        Dropout(0.3),
 
         Dense(64, activation="relu"),
-        Dense(32, activation="relu"),
         Dense(num_classes, activation="softmax"),
     ], name="WLASL_LSTM")
 
@@ -450,14 +458,13 @@ def predict_video(video_path: str, model_path: str = "best_wlasl_lstm.keras"):
     classes = np.load("label_classes.npy", allow_pickle=True)
 
     print("🔧 Инициализация детекторов для инференса ...")
-    pose_det, hand_det, face_det = build_detectors()
+    pose_det, hand_det = build_detectors()
 
     try:
-        seq = video_to_sequence(video_path, pose_det, hand_det, face_det)
+        seq = video_to_sequence(video_path, pose_det, hand_det)
     finally:
         pose_det.close()
         hand_det.close()
-        face_det.close()
 
     seq   = seq[np.newaxis, ...]
     probs = model.predict(seq, verbose=0)[0]
