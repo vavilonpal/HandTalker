@@ -59,7 +59,9 @@ MODEL_DIR        = "./mp_models"          # .task файлы MediaPipe
 
 SUBSET           = 100     # 100 / 300 / 1000 / 2000 классов
 SEQUENCE_LEN     = 30      # кадров на один пример
-NUM_FEATURES     = 1692    # размер вектора кейпоинтов
+
+# убираем полностью лицо и у нас остается 132 + 63 + 63 = 258 features
+NUM_FEATURES     = 258    # размер вектора кейпоинтов
 
 EPOCHS           = 100
 BATCH_SIZE       = 32
@@ -132,20 +134,11 @@ def build_detectors():
         min_tracking_confidence=0.5,
     )
 
-    face_opts = mp_vision.FaceLandmarkerOptions(
-        base_options=BaseOptions(model_asset_path=ensure_model("face")),
-        running_mode=VisionTaskRunningMode.IMAGE,
-        num_faces=1,
-        min_face_detection_confidence=0.5,
-        min_face_presence_confidence=0.5,
-        min_tracking_confidence=0.5,
-    )
-
     pose_det = mp_vision.PoseLandmarker.create_from_options(pose_opts)
     hand_det = mp_vision.HandLandmarker.create_from_options(hand_opts)
-    face_det = mp_vision.FaceLandmarker.create_from_options(face_opts)
 
-    return pose_det, hand_det, face_det
+
+    return pose_det, hand_det
 
 
 # ─── 3. ИЗВЛЕЧЕНИЕ ВЕКТОРА КЕЙПОИНТОВ ───────────────────────────────────────
@@ -154,7 +147,6 @@ def frame_to_keypoints(
     frame_rgb: np.ndarray,
     pose_det,
     hand_det,
-    face_det,
 ) -> np.ndarray:
     """
     Принимает один RGB кадр (H×W×3 uint8).
@@ -173,17 +165,6 @@ def frame_to_keypoints(
     else:
         pose_vec = np.zeros(33 * 4, dtype=np.float32)
 
-    # ── Face: 468 × 3 = 1404 ─────────────────────────────────────────────────
-    face_res = face_det.detect(mp_img)
-    if face_res.face_landmarks:
-        lms = face_res.face_landmarks[0]
-        face_vec = np.array(
-            [[lm.x, lm.y, lm.z] for lm in lms],
-            dtype=np.float32,
-        ).flatten()
-    else:
-        face_vec = np.zeros(478 * 3, dtype=np.float32)
-
     # ── Hands: left 21×3=63 + right 21×3=63 ──────────────────────────────────
     hand_res = hand_det.detect(mp_img)
     lh_vec = np.zeros(21 * 3, dtype=np.float32)
@@ -201,8 +182,8 @@ def frame_to_keypoints(
         else:
             rh_vec = vec
 
-    # ── Конкатенация: 132 + 1404 + 63 + 63 = 1662 ────────────────────────────
-    return np.concatenate([pose_vec, face_vec, lh_vec, rh_vec])
+    # ── Конкатенация: 132 + 63 + 63 = 258 features
+    return np.concatenate([pose_vec, lh_vec, rh_vec])
 
 
 # ─── 4. ВИДЕО → ПОСЛЕДОВАТЕЛЬНОСТЬ КЕЙПОИНТОВ ────────────────────────────────
@@ -211,7 +192,6 @@ def video_to_sequence(
     video_path: str,
     pose_det,
     hand_det,
-    face_det,
     seq_len: int = SEQUENCE_LEN,
 ) -> np.ndarray:
     """
@@ -251,7 +231,7 @@ def video_to_sequence(
 
     keypoints = []
     for frame_rgb in selected:
-        kp = frame_to_keypoints(frame_rgb, pose_det, hand_det, face_det)
+        kp = frame_to_keypoints(frame_rgb, pose_det, hand_det)
         keypoints.append(kp)
 
     seq = np.array(keypoints, dtype=np.float32)
