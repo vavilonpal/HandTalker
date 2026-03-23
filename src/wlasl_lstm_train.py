@@ -40,7 +40,7 @@ from sklearn.preprocessing import LabelEncoder
 
 import tensorflow as tf
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import LSTM, Dense, Dropout
+from tensorflow.keras.layers import LSTM, Dense, Dropout, Bidirectional, Softmax, Lambda, Multiply, Layer
 from tensorflow.keras.callbacks import (
     ModelCheckpoint, EarlyStopping, ReduceLROnPlateau
 )
@@ -335,37 +335,51 @@ def build_dataset(samples: list, glosses: list):
     print(f"✅ Датасет готов: X={X.shape}  y={y_cat.shape}")
     return X, y_cat, le
 
+# Заменяем Lambda на кастомный слой
+class ReduceSum(Layer):
+    def call(self, x):
+        return tf.reduce_sum(x, axis=1)
+
+    def get_config(self):
+        return super().get_config()
 
 # ─── 7. МОДЕЛЬ ────────────────────────────────────────────────────────────────
 # ref: поменял relu параметр модели на tanh
 def build_model(num_classes: int) -> tf.keras.Model:
-    model = Sequential([
-        LSTM(64, return_sequences=True,
-             input_shape=(SEQUENCE_LEN, NUM_FEATURES)),
-        Dropout(0.2),
+    inputs = tf.keras.Input(shape=(SEQUENCE_LEN, NUM_FEATURES))
 
-        LSTM(128, return_sequences=True),
-        Dropout(0.3),
+    x = Bidirectional(LSTM(128, return_sequences=True))(inputs)
+    x = Dropout(0.3)(x)
 
-        LSTM(64, return_sequences=False),
-        Dropout(0.3),
+    x = Bidirectional(LSTM(128, return_sequences=True))(x)
+    x = Dropout(0.3)(x)
 
-        Dense(128, activation="relu"),
-        Dropout(0.3),
+    # Attention
+    attention = Dense(1, activation="tanh")(x)
+    attention = tf.keras.layers.Softmax(axis=1)(attention)
 
-        Dense(64, activation="relu"),
-        Dense(num_classes, activation="softmax"),
-    ], name="WLASL_LSTM")
+    x = Multiply()([x, attention])
+    x = ReduceSum()(x)          # ← вместо Lambda
+
+    x = Dense(128, activation="relu")(x)
+    x = Dropout(0.3)(x)
+
+    outputs = Dense(num_classes, activation="softmax")(x)
+
+    model = tf.keras.Model(inputs, outputs)
 
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+        optimizer=tf.keras.optimizers.Adam(
+            learning_rate=LEARNING_RATE,
+            clipnorm=1.0
+        ),
         loss="categorical_crossentropy",
         metrics=[
             "accuracy",
-            tf.keras.metrics.TopKCategoricalAccuracy(k=5, name="top5_acc"),
+            tf.keras.metrics.TopKCategoricalAccuracy(k=5)
         ],
     )
-    model.summary()
+
     return model
 
 
