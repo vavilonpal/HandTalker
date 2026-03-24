@@ -1,3 +1,8 @@
-
-
+.idea
+.tts-venv
+.venv
 /desc-for-diplom
+
+/src/my_dataset
+/src/keypoints_cache
+/src/wlasl_archive

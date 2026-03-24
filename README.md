@@ -1,7 +1,72 @@
-### About project
-This project can get videos with 60sec time limit and exchange sign language into text.
 
-### How in works?
-For analys hands movement was used MediaPipe.
-MediaPipe is the special tool for hands, face and other body parts tracking.
-This tool was developed by Google
+
+## Заметки
+
+
+
+### Точки с лицом (1404 в сумме со всем 1692)
+лицо состовляло большую часть точек, поэтому было решено его убрать и оставить только позу и руки
+
+
+
+первый тест модели дал 
+
+Epoch 64: early stopping
+Restoring model weights from the end of the best epoch: 49.
+
+📊 Результаты на тестовой выборке:
+   Loss      : 5.1560
+   Top-1 Acc : 1.3%
+   Top-5 Acc : 12.5%
+
+✅ Модель сохранена → wlasl_lstm_final.keras
+
+## Результат второй обучения за 100 эпох
+Из изменений убрали лицо и мелкие фиксы в самой модели
+
+📊 Результаты на тестовой выборке:
+   Loss      : 2.3920
+   Top-1 Acc : 41.4%
+   Top-5 Acc : 68.4%
+
+✅ Модель сохранена → wlasl_lstm_final.keras
+
+
+### 3 переобучение, следующие фиксы которые предложил чат
+
+## Attention
+
+Attention — это механизм, который позволяет модели понять:
+👉 какие части последовательности важнее других
+
+Пример (жесты)
+Представь жест "hello":
+первые кадры — рука поднимается
+середина — сам жест (важно)
+конец — рука опускается
+👉 Attention:
+фокусируется на середине
+игнорирует лишнее
+
+Как это выглядит в модели
+С attention:
+
+LSTM → Attention → Dense → Output
+
+
+## Gradle clipping
+
+Gradient clipping — это ограничение величины градиентов во время обучения нейросети, чтобы они не “взрывались”.
+
+
+после всего это поулчаем следующее
+
+📊 Результаты на тестовой выборке:
+   Loss      : 1.1822
+   Top-1 Acc : 81.6%
+   Top-5 Acc : 91.1%
+
+✅ Модель сохранена → wlasl_lstm_final.keras
+
+
+

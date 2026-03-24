@@ -50,9 +50,10 @@ JSON_PATH = os.path.join(DATASET_ROOT, "WLASL_v0.3.json")
 VIDEOS_DIR = os.path.join(DATASET_ROOT, "videos")
 CACHE_DIR = "./keypoints_cache"
 MODEL_DIR = "./mp_models"
+CUSTOM_DATASET_DIR = "./my_dataset"
 
 SUBSET = 10
-SEQUENCE_LEN = 60
+SEQUENCE_LEN = 30
 NUM_FEATURES = 258
 
 EPOCHS = 100
@@ -146,8 +147,9 @@ def frame_to_keypoints(frame_rgb, pose_det, hand_det):
     return result.astype(np.float32)
 
 
-def video_to_sequence(video_path, pose_det, hand_det, seq_len=SEQUENCE_LEN):
-    cache_key = os.path.splitext(os.path.basename(video_path))[0]
+def video_to_sequence(video_path, pose_det, hand_det, seq_len=SEQUENCE_LEN, cache_key=None):
+    if cache_key is None:
+        cache_key = os.path.splitext(os.path.basename(video_path))[0]
     cache_file = os.path.join(CACHE_DIR, f"{cache_key}.npy")
     if os.path.exists(cache_file):
         return np.load(cache_file)
@@ -194,6 +196,24 @@ def load_wlasl_samples(json_path, videos_dir, subset):
             if os.path.exists(vp):
                 samples.append((vp, entry["gloss"]))
     print(f"✅ Найдено {len(samples)} видео для {subset} классов")
+    return samples, glosses
+
+
+def load_custom_samples(dataset_dir):
+    """Загружает все mp4-видео из my_dataset/<word>/*.mp4."""
+    samples, glosses = [], []
+    if not os.path.isdir(dataset_dir):
+        print(f"⚠️  Папка кастомного датасета не найдена: {dataset_dir}")
+        return samples, glosses
+    for word in sorted(os.listdir(dataset_dir)):
+        word_dir = os.path.join(dataset_dir, word)
+        if not os.path.isdir(word_dir):
+            continue
+        glosses.append(word)
+        for fname in os.listdir(word_dir):
+            if fname.lower().endswith(".mp4"):
+                samples.append((os.path.join(word_dir, fname), word))
+    print(f"✅ Кастомный датасет: {len(samples)} видео для {len(glosses)} классов")
     return samples, glosses
 
 
@@ -278,14 +298,21 @@ def process_one(args):
     """Обрабатывает одно видео в отдельном потоке."""
     video_path, gloss = args
     try:
-        cache_file = os.path.join(CACHE_DIR,
-            os.path.splitext(os.path.basename(video_path))[0] + ".npy")
+        # Collision-free cache key: custom videos get prefix "custom_<word>_<stem>"
+        stem = os.path.splitext(os.path.basename(video_path))[0]
+        parent = os.path.basename(os.path.dirname(video_path))
+        norm = str(video_path).replace("\\", "/")
+        if "/my_dataset/" in norm or norm.endswith("/my_dataset"):
+            cache_key = f"custom_{parent}_{stem}"
+        else:
+            cache_key = stem
+        cache_file = os.path.join(CACHE_DIR, f"{cache_key}.npy")
 
         if os.path.exists(cache_file):
             seq = np.load(cache_file)
         else:
             pose_det, hand_det = get_thread_detectors()
-            seq = video_to_sequence(video_path, pose_det, hand_det)
+            seq = video_to_sequence(video_path, pose_det, hand_det, cache_key=cache_key)
 
         if seq.shape != (SEQUENCE_LEN, NUM_FEATURES):
             return None, None
@@ -381,12 +408,20 @@ def main():
         print(f"  VRAM    : {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
     print("=" * 60)
 
-    samples, glosses = load_wlasl_samples(JSON_PATH, VIDEOS_DIR, SUBSET)
-    X, y_enc, le = build_dataset(samples, glosses)
+    wlasl_samples, wlasl_glosses = load_wlasl_samples(JSON_PATH, VIDEOS_DIR, SUBSET)
+    custom_samples, custom_glosses = load_custom_samples(CUSTOM_DATASET_DIR)
+
+    # Merge: add custom glosses not already in WLASL to avoid duplicates
+    extra_glosses = [g for g in custom_glosses if g not in wlasl_glosses]
+    all_glosses = wlasl_glosses + extra_glosses
+    all_samples = wlasl_samples + custom_samples
+    print(f"📦 Всего после объединения: {len(all_samples)} видео, {len(all_glosses)} классов")
+
+    X, y_enc, le = build_dataset(all_samples, all_glosses)
     np.save("label_classes.npy", le.classes_)
     print("💾 label_classes.npy сохранён")
 
-    num_classes = len(glosses)
+    num_classes = len(all_glosses)
 
     X_tmp, X_test, y_tmp, y_test = train_test_split(
         X, y_enc, test_size=TEST_SPLIT, stratify=y_enc, random_state=42)

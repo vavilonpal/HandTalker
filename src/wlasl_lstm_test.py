@@ -24,11 +24,11 @@ from tensorflow.keras.layers import Layer
 
 # ─── КОНФИГУРАЦИЯ ────────────────────────────────────────────────────────────
 
-MODEL_PATH = "./wlasl_archive/wlasl_lstm_final.keras"  # путь к обученной модели
+MODEL_PATH = "wlasl_lstm_final.keras"  # путь к обученной модели
 CLASSES_PATH = "./wlasl_archive/label_classes.npy"  # путь к файлу с классами
 MP_MODEL_DIR = "./wlasl_archive/mp_models"  # папка с .task моделями MediaPipe
 
-SEQUENCE_LEN = 30  # должно совпадать с тем что было при обучении
+SEQUENCE_LEN = 60  # должно совпадать с тем что было при обучении
 NUM_FEATURES = 258  # должно совпадать с тем что было при обучении
 THRESHOLD = 0.5  # минимальная уверенность для отображения предсказания
 
