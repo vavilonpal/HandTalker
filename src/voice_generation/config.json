@@ -1,0 +1,15 @@
+{
+  "model": "vits",
+  "run_name": "emotion_tts",
+  "audio": {
+    "sample_rate": 22050
+  },
+  "datasets": [
+    {
+      "name": "emotion_dataset",
+      "path": "./dataset",
+      "meta_file_train": "metadata.csv"
+    }
+  ],
+  "use_speaker_embedding": true
+}
