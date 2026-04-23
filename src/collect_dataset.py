@@ -35,7 +35,6 @@ CAMERA_INDEX      = 0         # индекс камеры (0 = встроенн�
 FRAME_W           = 640
 FRAME_H           = 480
 
-# Слова которые хотите распознавать
 CLASSES = [
     "accident",
     "africa",
