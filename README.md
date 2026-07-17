@@ -1,72 +1,335 @@
+# HandTalker
 
+Система распознавания языка жестов с синтезом речи и анализом эмоций.
 
-## Заметки
+Принимает видео с жестами американского жестового языка (ASL), распознаёт показанные слова, определяет доминирующую эмоцию говорящего, озвучивает распознанный текст голосом и накладывает аудио обратно на видео.
 
+---
 
+## Оглавление
 
-### Точки с лицом (1404 в сумме со всем 1692)
-лицо состовляло большую часть точек, поэтому было решено его убрать и оставить только позу и руки
+- [Архитектура](#архитектура)
+- [Структура проекта](#структура-проекта)
+- [Установка](#установка)
+- [Данные](#данные)
+- [Обучение модели](#обучение-модели)
+- [Тестирование в реальном времени](#тестирование-в-реальном-времени)
+- [Сервисный слой (FastAPI)](#сервисный-слой-fastapi)
+- [Результаты обучения](#результаты-обучения)
 
+---
 
+## Архитектура
 
-первый тест модели дал 
+Пайплайн состоит из четырёх последовательных этапов:
 
-Epoch 64: early stopping
-Restoring model weights from the end of the best epoch: 49.
+```
+Входное видео
+    |
+    v
+[1] SignToTextService      -- PyTorch Bi-LSTM + Attention
+    Извлечение кейпоинтов MediaPipe -> распознавание жестов -> предложение
+    |
+    v
+[2] EmotionService         -- DeepFace
+    Анализ лица по кадрам -> доминирующая эмоция видео
+    |
+    v
+[3] TTSService             -- Coqui TTS (xtts_v2)
+    Текст + эмоция -> WAV-файл (темп речи подстраивается под эмоцию)
+    |
+    v
+[4] AudioOverlayService    -- FFmpeg
+    Исходное видео + WAV -> итоговый MP4
+```
 
-📊 Результаты на тестовой выборке:
-   Loss      : 5.1560
-   Top-1 Acc : 1.3%
-   Top-5 Acc : 12.5%
+### Модель распознавания жестов
 
-✅ Модель сохранена → wlasl_lstm_final.keras
+- Входные признаки: 258 значений на кадр
+  - Поза тела: 33 точки x 4 координаты (x, y, z, visibility) = 132
+  - Левая рука: 21 точка x 3 координаты = 63
+  - Правая рука: 21 точка x 3 координаты = 63
+- Последовательность: 30 кадров на жест
+- Архитектура: двунаправленный LSTM (2 слоя, hidden=128) + механизм Attention + два полносвязных слоя
+- Обучение: WLASL dataset (10 классов) + собственный датасет (10 классов, 60 примеров на слово)
 
-## Результат второй обучения за 100 эпох
-Из изменений убрали лицо и мелкие фиксы в самой модели
+---
 
-📊 Результаты на тестовой выборке:
-   Loss      : 2.3920
-   Top-1 Acc : 41.4%
-   Top-5 Acc : 68.4%
+## Структура проекта
 
-✅ Модель сохранена → wlasl_lstm_final.keras
+```
+HandTalker/
+├── src/
+│   ├── pytorch_transformer_train.py   # обучение модели
+│   ├── realtime_tester.py             # тестирование: камера / видеофайл
+│   ├── collect_dataset.py             # сбор собственного датасета
+│   ├── wlasl_lstm_final.pt            # обученная модель (PyTorch)
+│   ├── best_wlasl_lstm.pt             # лучший чекпоинт по val_acc
+│   ├── label_classes.npy              # список распознаваемых классов
+│   │
+│   ├── services/                      # сервисный слой для FastAPI
+│   │   ├── emotion_service.py         # анализ эмоций по видео
+│   │   ├── sign_to_text_service.py    # жест -> текст
+│   │   ├── tts_service.py             # текст -> WAV
+│   │   └── audio_overlay_service.py   # наложение аудио на видео
+│   │
+│   ├── emotional_painting/
+│   │   └── emotions_processor.py      # DeepFace-обёртка для анализа эмоций
+│   │
+│   ├── voice_generation/
+│   │   └── voice_generator.py         # прямой запуск TTS (скрипт)
+│   │
+│   ├── my_dataset/                    # собственный датасет (10 слов x 60 MP4)
+│   │   ├── accident/
+│   │   ├── africa/
+│   │   ├── apple/
+│   │   └── ...
+│   │
+│   ├── wlasl_archive/                 # WLASL датасет
+│   │   ├── WLASL_v0.3.json
+│   │   └── videos/
+│   │
+│   ├── keypoints_cache/               # кэш кейпоинтов (NPY, генерируется)
+│   └── mp_models/                     # модели MediaPipe (скачиваются авто)
+│
+├── requirements.txt
+├── .gitignore
+└── README.md
+```
 
+---
 
-### 3 переобучение, следующие фиксы которые предложил чат
+## Установка
 
-## Attention
+### 1. Клонировать репозиторий
 
-Attention — это механизм, который позволяет модели понять:
-👉 какие части последовательности важнее других
+```bash
+git clone <repo-url>
+cd HandTalker
+```
 
-Пример (жесты)
-Представь жест "hello":
-первые кадры — рука поднимается
-середина — сам жест (важно)
-конец — рука опускается
-👉 Attention:
-фокусируется на середине
-игнорирует лишнее
+### 2. Создать виртуальное окружение
 
-Как это выглядит в модели
-С attention:
+```bash
+python -m venv .venv
+.venv\Scripts\activate        # Windows
+```
 
-LSTM → Attention → Dense → Output
+### 3. Установить зависимости
 
+```bash
+pip install -r requirements.txt
+```
 
-## Gradle clipping
+Основные зависимости:
 
-Gradient clipping — это ограничение величины градиентов во время обучения нейросети, чтобы они не “взрывались”.
+| Пакет | Назначение |
+|---|---|
+| torch, torchvision | модель распознавания жестов |
+| mediapipe | извлечение кейпоинтов (поза + руки) |
+| opencv-python | работа с видео |
+| deepface | анализ эмоций по лицу |
+| TTS | синтез речи (Coqui TTS) |
+| scikit-learn | LabelEncoder, train/test split |
+| numpy, tqdm | вспомогательные утилиты |
 
+### 4. Установить FFmpeg
 
-после всего это поулчаем следующее
+Требуется для `AudioOverlayService`:
 
-📊 Результаты на тестовой выборке:
-   Loss      : 1.1822
-   Top-1 Acc : 81.6%
-   Top-5 Acc : 91.1%
+```bash
+winget install ffmpeg
+```
 
-✅ Модель сохранена → wlasl_lstm_final.keras
+---
 
+## Данные
 
+### WLASL
 
+Скачать датасет: [kaggle.com/datasets/risangbaskoro/wlasl-processed](https://www.kaggle.com/datasets/risangbaskoro/wlasl-processed)
+
+Распаковать в:
+
+```
+src/wlasl_archive/
+    WLASL_v0.3.json
+    videos/
+        00001.mp4
+        00002.mp4
+        ...
+```
+
+### Собственный датасет
+
+Структура папки `my_dataset`:
+
+```
+src/my_dataset/
+    <слово>/
+        0.mp4
+        1.mp4
+        ...
+        59.mp4
+```
+
+Для записи собственных жестов используйте `collect_dataset.py`.
+
+---
+
+## Обучение модели
+
+```bash
+cd src
+python pytorch_transformer_train.py
+```
+
+Параметры в начале файла:
+
+| Параметр | Значение по умолчанию | Описание |
+|---|---|---|
+| `SUBSET` | 10 | сколько слов взять из WLASL |
+| `SEQUENCE_LEN` | 30 | кадров на жест |
+| `EPOCHS` | 100 | максимум эпох |
+| `BATCH_SIZE` | 32 | размер батча |
+| `LEARNING_RATE` | 1e-3 | начальная скорость обучения |
+| `PATIENCE` | 25 | early stopping |
+
+Результат: `wlasl_lstm_final.pt` и `label_classes.npy` в папке `src/`.
+
+Кейпоинты автоматически кэшируются в `keypoints_cache/` — повторный запуск не перерабатывает уже обработанные видео.
+
+---
+
+## Тестирование в реальном времени
+
+```bash
+cd src
+
+# Интерактивное меню (камера или видеофайл)
+python realtime_tester.py
+
+# Прямо на видеофайл
+python realtime_tester.py --video path/to/video.mp4
+
+# Без окна предпросмотра
+python realtime_tester.py --video path/to/video.mp4 --no-window
+```
+
+Управление в режиме камеры:
+
+| Клавиша | Действие |
+|---|---|
+| Q | выход, вывод итогового предложения |
+| C | очистить буфер и предложение |
+| S | сохранить предложение в `sentence.txt` |
+
+---
+
+## Сервисный слой (FastAPI)
+
+Все четыре сервиса находятся в `src/services/`. Каждый — это независимый класс, готовый к подключению в FastAPI-приложение.
+
+### EmotionService
+
+```python
+from services.emotion_service import EmotionService
+
+svc = EmotionService(sample_fps=1.0)
+result = svc.analyze("video.mp4")
+# result["dominant_emotion"]  ->  "happy"
+# result["emotion_scores"]    ->  {"happy": 72.3, "sad": 5.1, ...}
+# result["timeline"]          ->  [{timestamp, dominant_emotion, emotions}, ...]
+```
+
+### SignToTextService
+
+```python
+from services.sign_to_text_service import SignToTextService
+
+svc = SignToTextService()
+sentence = svc.transcribe("video.mp4")
+# sentence -> "apple bird basketball"
+```
+
+### TTSService
+
+```python
+from services.tts_service import TTSService
+
+svc = TTSService(language="en")
+wav_path = svc.synthesize(
+    text="apple bird basketball",
+    output_path="output/speech.wav",
+    emotion="happy",   # подстраивает темп речи
+)
+```
+
+Сопоставление эмоции и темпа:
+
+| Эмоция | Скорость речи |
+|---|---|
+| happy | 1.15 |
+| angry | 1.20 |
+| neutral | 1.00 |
+| sad | 0.82 |
+| disgust | 0.90 |
+
+### AudioOverlayService
+
+```python
+from services.audio_overlay_service import AudioOverlayService
+
+svc = AudioOverlayService()
+
+# Смешать TTS с оригинальным аудио
+out = svc.overlay(
+    video_path="input.mp4",
+    audio_path="speech.wav",
+    output_path="result.mp4",
+    tts_volume=1.0,
+    orig_volume=0.3,
+)
+
+# Полностью заменить аудио
+out = svc.replace_audio("input.mp4", "speech.wav", "result.mp4")
+```
+
+### Пример полного пайплайна в FastAPI
+
+```python
+from fastapi import FastAPI, UploadFile
+from services.emotion_service import EmotionService
+from services.sign_to_text_service import SignToTextService
+from services.tts_service import TTSService
+from services.audio_overlay_service import AudioOverlayService
+
+app = FastAPI()
+
+emotion_svc  = EmotionService()
+sign_svc     = SignToTextService()
+tts_svc      = TTSService(language="en")
+overlay_svc  = AudioOverlayService()
+
+@app.post("/process")
+async def process_video(file: UploadFile):
+    video_path = f"/tmp/{file.filename}"
+    # ... сохранить файл ...
+
+    sentence  = sign_svc.transcribe(video_path)
+    emotion   = emotion_svc.analyze(video_path)["dominant_emotion"]
+    wav_path  = tts_svc.synthesize(sentence, "/tmp/speech.wav", emotion)
+    result    = overlay_svc.overlay(video_path, wav_path, "/tmp/result.mp4")
+
+    return {"sentence": sentence, "emotion": emotion, "video": result}
+```
+
+---
+
+## Результаты обучения
+
+| Итерация | Top-1 Acc | Top-5 Acc | Изменения |
+|---|---|---|---|
+| 1 | 1.3% | 12.5% | базовая модель |
+| 2 | 41.4% | 68.4% | убраны точки лица, мелкие правки |
+| 3 | 81.6% | 91.1% | добавлен Attention + Gradient Clipping |

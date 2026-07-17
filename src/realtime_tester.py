@@ -33,7 +33,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-# ─── КОНФИГУРАЦИЯ ────────────────────────────────────────────────────────────
+# КОНФИГУРАЦИЯ
 
 MODEL_PATH   = "./wlasl_lstm_final.pt"   # PyTorch-модель
 CLASSES_PATH = "./label_classes.npy"     # массив классов
@@ -47,7 +47,7 @@ CONFIRM_REPS = 3        # сколько раз подряд предсказа�
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# ─── MEDIAPIPE МОДЕЛИ ────────────────────────────────────────────────────────
+# MEDIAPIPE МОДЕЛИ
 
 _TASK_MODELS = {
     "pose": (
@@ -68,9 +68,9 @@ def ensure_model(key: str) -> str:
     filename, url = _TASK_MODELS[key]
     path = os.path.join(MP_MODEL_DIR, filename)
     if not os.path.exists(path):
-        print(f"⬇️  Скачиваю {filename} ...")
+        print(f"Скачиваю {filename} ...")
         urllib.request.urlretrieve(url, path)
-        print(f"   ✅ {path}")
+        print(f"   Сохранён: {path}")
     return path
 
 
@@ -99,7 +99,7 @@ def build_detectors():
     return pose_det, hand_det
 
 
-# ─── ИЗВЛЕЧЕНИЕ КЕЙПОИНТОВ ───────────────────────────────────────────────────
+# ИЗВЛЕЧЕНИЕ КЕЙПОИНТОВ
 
 def frame_to_keypoints(frame_rgb: np.ndarray, pose_det, hand_det) -> np.ndarray:
     mp_img = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
@@ -134,7 +134,7 @@ def frame_to_keypoints(frame_rgb: np.ndarray, pose_det, hand_det) -> np.ndarray:
     return result.astype(np.float32)
 
 
-# ─── PYTORCH МОДЕЛЬ (копия архитектуры из обучения) ──────────────────────────
+# PYTORCH МОДЕЛЬ (копия архитектуры из обучения)
 
 class AttentionLayer(nn.Module):
     def __init__(self, hidden_size: int):
@@ -174,7 +174,7 @@ class WLASLModel(nn.Module):
         return self.fc2(out)
 
 
-# ─── ЗАГРУЗКА МОДЕЛИ ─────────────────────────────────────────────────────────
+# ЗАГРУЗКА МОДЕЛИ
 
 def load_model(model_path: str = MODEL_PATH, classes_path: str = CLASSES_PATH):
     if not os.path.exists(model_path):
@@ -188,11 +188,11 @@ def load_model(model_path: str = MODEL_PATH, classes_path: str = CLASSES_PATH):
     model   = WLASLModel(num_classes=ckpt["num_classes"]).to(DEVICE)
     model.load_state_dict(ckpt["model_state"])
     model.eval()
-    print(f"✅ Модель загружена | классов: {ckpt['num_classes']} | device: {DEVICE}")
+    print(f"Модель загружена | классов: {ckpt['num_classes']} | device: {DEVICE}")
     return model, classes
 
 
-# ─── ОБЩАЯ УТИЛИТА: ИНФЕРЕНС ──────────────────────────────────────────────────
+# ОБЩАЯ УТИЛИТА: ИНФЕРЕНС
 
 @torch.no_grad()
 def predict_sequence(seq: np.ndarray, model, classes) -> tuple[str, float]:
@@ -203,7 +203,7 @@ def predict_sequence(seq: np.ndarray, model, classes) -> tuple[str, float]:
     return str(classes[idx]), float(probs[idx])
 
 
-# ─── ВСПОМОГАТЕЛЬНАЯ: ДОБАВИТЬ СЛОВО В ПРЕДЛОЖЕНИЕ (без дублей подряд) ───────
+# ВСПОМОГАТЕЛЬНАЯ: ДОБАВИТЬ СЛОВО В ПРЕДЛОЖЕНИЕ (без дублей подряд)
 
 def append_word(sentence: list, word: str) -> list:
     """Добавляет слово если оно отличается от последнего в предложении."""
@@ -212,18 +212,10 @@ def append_word(sentence: list, word: str) -> list:
     return sentence
 
 
-# ─── РЕЖИМ 1: РЕАЛЬНОЕ ВРЕМЯ С КАМЕРЫ ───────────────────────────────────────
+# РЕЖИМ 1: РЕАЛЬНОЕ ВРЕМЯ С КАМЕРЫ
 
 def run_realtime(camera_index: int = 0):
-    """
-    Предсказание жестов с камеры в реальном времени.
-
-    Управление:
-        Q — выход и вывод итогового предложения
-        C — очистить буфер и предложение
-        S — сохранить текущее предложение в файл sentence.txt
-    """
-    print("\n📷 Реальное время (Q — выход, C — очистить, S — сохранить)")
+    print("\nРеальное время (Q — выход, C — очистить, S — сохранить)")
 
     model, classes = load_model()
     pose_det, hand_det = build_detectors()
@@ -234,6 +226,20 @@ def run_realtime(camera_index: int = 0):
     confidence   = 0.0
     confirm_buf  = deque(maxlen=CONFIRM_REPS)
     frame_count  = 0
+
+    HAND_CONNECTIONS = [
+        (0,1),(1,2),(2,3),(3,4),
+        (0,5),(5,6),(6,7),(7,8),
+        (0,9),(9,10),(10,11),(11,12),
+        (0,13),(13,14),(14,15),(15,16),
+        (0,17),(17,18),(18,19),(19,20),
+        (5,9),(9,13),(13,17),
+    ]
+    POSE_CONNECTIONS = [
+        (11,12),(11,13),(13,15),(12,14),(14,16),
+        (11,23),(12,24),(23,24),
+        (23,25),(25,27),(24,26),(26,28),
+    ]
 
     cap = cv2.VideoCapture(camera_index)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH,  1280)
@@ -250,6 +256,43 @@ def run_realtime(camera_index: int = 0):
             try:
                 kp = frame_to_keypoints(frame_rgb, pose_det, hand_det)
                 sequence.append(kp)
+
+                h, w = frame.shape[:2]
+
+                # Поза
+                pose = kp[:132].reshape(33, 4)
+                for a, b in POSE_CONNECTIONS:
+                    if pose[a][3] > 0.3 and pose[b][3] > 0.3:
+                        x1, y1 = int(pose[a][0] * w), int(pose[a][1] * h)
+                        x2, y2 = int(pose[b][0] * w), int(pose[b][1] * h)
+                        cv2.line(frame, (x1, y1), (x2, y2), (0, 200, 255), 2)
+                for i in range(33):
+                    if pose[i][3] > 0.3:
+                        cx, cy = int(pose[i][0] * w), int(pose[i][1] * h)
+                        cv2.circle(frame, (cx, cy), 4, (0, 255, 180), -1)
+
+                # Левая рука
+                lh = kp[132:195].reshape(21, 3)
+                if lh.any():
+                    for a, b in HAND_CONNECTIONS:
+                        x1, y1 = int(lh[a][0] * w), int(lh[a][1] * h)
+                        x2, y2 = int(lh[b][0] * w), int(lh[b][1] * h)
+                        cv2.line(frame, (x1, y1), (x2, y2), (255, 100, 0), 2)
+                    for i in range(21):
+                        cx, cy = int(lh[i][0] * w), int(lh[i][1] * h)
+                        cv2.circle(frame, (cx, cy), 5, (255, 180, 0), -1)
+
+                # Правая рука
+                rh = kp[195:258].reshape(21, 3)
+                if rh.any():
+                    for a, b in HAND_CONNECTIONS:
+                        x1, y1 = int(rh[a][0] * w), int(rh[a][1] * h)
+                        x2, y2 = int(rh[b][0] * w), int(rh[b][1] * h)
+                        cv2.line(frame, (x1, y1), (x2, y2), (0, 100, 255), 2)
+                    for i in range(21):
+                        cx, cy = int(rh[i][0] * w), int(rh[i][1] * h)
+                        cv2.circle(frame, (cx, cy), 5, (80, 160, 255), -1)
+
             except Exception:
                 pass
 
@@ -271,10 +314,9 @@ def run_realtime(camera_index: int = 0):
                     confidence = 0.0
                     confirm_buf.clear()
 
-            # ── Отрисовка ────────────────────────────────────────────────────
+            # UI панели
             h, w = frame.shape[:2]
 
-            # Верхняя панель — текущее предсказание
             cv2.rectangle(frame, (0, 0), (w, 90), (15, 15, 15), -1)
             color = (0, 230, 100) if confidence >= THRESHOLD else (120, 120, 120)
             cv2.putText(frame, prediction,
@@ -284,14 +326,12 @@ def run_realtime(camera_index: int = 0):
                             (w - 130, 62), cv2.FONT_HERSHEY_SIMPLEX, 1.2,
                             (255, 200, 0), 2)
 
-            # Предложение (снизу)
             sentence_str = " ".join(sentence) if sentence else "(пусто)"
             cv2.rectangle(frame, (0, h - 95), (w, h - 50), (25, 25, 25), -1)
             cv2.putText(frame, "Sentence: " + sentence_str,
                         (10, h - 62), cv2.FONT_HERSHEY_SIMPLEX, 0.75,
                         (200, 240, 255), 2)
 
-            # Прогресс-бар буфера
             filled = len(sequence)
             bar_w  = int(w * (filled / SEQUENCE_LEN))
             cv2.rectangle(frame, (0, h - 50), (w, h - 28), (40, 40, 40), -1)
@@ -300,7 +340,6 @@ def run_realtime(camera_index: int = 0):
                         (10, h - 32), cv2.FONT_HERSHEY_SIMPLEX, 0.45,
                         (200, 200, 200), 1)
 
-            # Подсказка
             cv2.rectangle(frame, (0, h - 28), (w, h), (10, 10, 10), -1)
             cv2.putText(frame, "Q - quit  |  C - clear  |  S - save",
                         (10, h - 8), cv2.FONT_HERSHEY_SIMPLEX, 0.48,
@@ -317,11 +356,11 @@ def run_realtime(camera_index: int = 0):
                 confirm_buf.clear()
                 prediction = ""
                 confidence = 0.0
-                print("🔄 Буфер и предложение очищены")
+                print("Буфер и предложение очищены")
             elif key == ord("s"):
                 with open("sentence.txt", "w", encoding="utf-8") as f:
                     f.write(" ".join(sentence))
-                print(f"💾 Сохранено → sentence.txt: {' '.join(sentence)}")
+                print(f"Сохранено в sentence.txt: {' '.join(sentence)}")
 
     finally:
         cap.release()
@@ -330,11 +369,11 @@ def run_realtime(camera_index: int = 0):
         hand_det.close()
 
     result = " ".join(sentence)
-    print(f"\n📝 Итоговое предложение: {result if result else '(ничего не распознано)'}")
+    print(f"\nИтоговое предложение: {result if result else '(ничего не распознано)'}")
     return result
 
 
-# ─── РЕЖИМ 2: АНАЛИЗ ВИДЕОФАЙЛА → ПРЕДЛОЖЕНИЕ ────────────────────────────────
+# РЕЖИМ 2: АНАЛИЗ ВИДЕОФАЙЛА → ПРЕДЛОЖЕНИЕ
 
 def analyze_video(video_path: str, show_window: bool = True) -> str:
     """
@@ -342,7 +381,7 @@ def analyze_video(video_path: str, show_window: bool = True) -> str:
     Строит предложение из слов без дубликатов подряд.
     Возвращает строку — предложение.
     """
-    print(f"\n📹 Анализ видео: {video_path}")
+    print(f"\nАнализ видео: {video_path}")
     if not os.path.exists(video_path):
         raise FileNotFoundError(f"Файл не найден: {video_path}")
 
@@ -418,7 +457,7 @@ def analyze_video(video_path: str, show_window: bool = True) -> str:
 
                 cv2.imshow("Sign Language — Video Analysis", frame)
                 if cv2.waitKey(1) & 0xFF == ord("q"):
-                    print("⏹️  Прерван пользователем")
+                    print("Прерван пользователем")
                     break
 
     finally:
@@ -429,11 +468,11 @@ def analyze_video(video_path: str, show_window: bool = True) -> str:
         hand_det.close()
 
     result = " ".join(sentence)
-    print(f"\n📝 Распознанное предложение: {result if result else '(ничего не распознано)'}")
+    print(f"\nРаспознанное предложение: {result if result else '(ничего не распознано)'}")
     return result
 
 
-# ─── ТОЧКА ВХОДА ─────────────────────────────────────────────────────────────
+# ТОЧКА ВХОДА
 
 def main():
     parser = argparse.ArgumentParser(description="Real-time sign language tester (PyTorch)")
@@ -454,7 +493,7 @@ def main():
 
     if args.video:
         sentence = analyze_video(args.video, show_window=not args.no_window)
-        print(f"\n✅ Результат: \"{sentence}\"")
+        print(f"\nРезультат: {sentence}")
     else:
         print("1 — Веб-камера (реальное время)")
         print("2 — Анализ видеофайла")
@@ -465,9 +504,9 @@ def main():
         elif choice == "2":
             path = input("Путь к видеофайлу: ").strip()
             sentence = analyze_video(path)
-            print(f"\n✅ Результат: \"{sentence}\"")
+            print(f"\nРезультат: {sentence}")
         else:
-            print("❌ Неверный выбор")
+            print("Неверный выбор")
 
 
 if __name__ == "__main__":

@@ -51,7 +51,7 @@ class AudioOverlayService:
     def __init__(self):
         _require_ffmpeg()
 
-    # ------------------------------------------------------------------
+    #
     def overlay(
         self,
         video_path:  str,
@@ -87,10 +87,10 @@ class AudioOverlayService:
 
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
 
-        # ── Get video duration ──────────────────────────────────────────
+        # Get video duration
         duration = self._get_duration(video_path)
 
-        # ── Build FFmpeg filter graph ───────────────────────────────────
+        # Build FFmpeg filter graph
         # We use amix to blend:
         #   [0:a] = original audio scaled by orig_volume
         #   [1:a] = TTS audio looped to fill video, scaled by tts_volume
@@ -130,7 +130,7 @@ class AudioOverlayService:
 
         return os.path.abspath(output_path)
 
-    # ------------------------------------------------------------------
+    #
     def replace_audio(
         self,
         video_path:  str,
@@ -184,7 +184,7 @@ class AudioOverlayService:
 
         return os.path.abspath(output_path)
 
-    # ------------------------------------------------------------------
+    #
     @staticmethod
     def _get_duration(video_path: str) -> float:
         """Return video duration in seconds using ffprobe."""

@@ -55,7 +55,7 @@ class SignToTextService:
         self._model   = None
         self._classes = None
 
-    # ------------------------------------------------------------------
+    #
     def _ensure_loaded(self):
         if self._model is None:
             self._model, self._classes = load_model(
@@ -63,7 +63,7 @@ class SignToTextService:
                 classes_path=self.classes_path,
             )
 
-    # ------------------------------------------------------------------
+    #
     def transcribe(self, video_path: str) -> str:
         """
         Run sign-language recognition on the video and return a sentence.

@@ -59,14 +59,14 @@ class TTSService:
         self.language   = language
         self._tts: TTS | None = None
 
-    # ------------------------------------------------------------------
+    #
     def _ensure_loaded(self):
         if self._tts is None:
             print(f"[TTSService] Loading model: {self.model_name} ...")
             self._tts = TTS(model_name=self.model_name)
             print("[TTSService] Model ready.")
 
-    # ------------------------------------------------------------------
+    #
     def synthesize(
         self,
         text:        str,

@@ -86,9 +86,9 @@ def ensure_model(key):
     filename, url = _TASK_MODELS[key]
     path = os.path.join(MODEL_DIR, filename)
     if not os.path.exists(path):
-        print(f"⬇️  Скачиваю {filename} ...")
+        print(f"Скачиваю {filename} ...")
         urllib.request.urlretrieve(url, path)
-        print(f"   ✅ сохранён → {path}")
+        print(f"   Сохранён: {path}")
     return path
 
 
@@ -195,7 +195,7 @@ def load_wlasl_samples(json_path, videos_dir, subset):
             vp = os.path.join(videos_dir, f"{inst['video_id']}.mp4")
             if os.path.exists(vp):
                 samples.append((vp, entry["gloss"]))
-    print(f"✅ Найдено {len(samples)} видео для {subset} классов")
+    print(f"Найдено {len(samples)} видео для {subset} классов")
     return samples, glosses
 
 
@@ -203,7 +203,7 @@ def load_custom_samples(dataset_dir):
     """Загружает все mp4-видео из my_dataset/<word>/*.mp4."""
     samples, glosses = [], []
     if not os.path.isdir(dataset_dir):
-        print(f"⚠️  Папка кастомного датасета не найдена: {dataset_dir}")
+        print(f"Папка кастомного датасета не найдена: {dataset_dir}")
         return samples, glosses
     for word in sorted(os.listdir(dataset_dir)):
         word_dir = os.path.join(dataset_dir, word)
@@ -213,7 +213,7 @@ def load_custom_samples(dataset_dir):
         for fname in os.listdir(word_dir):
             if fname.lower().endswith(".mp4"):
                 samples.append((os.path.join(word_dir, fname), word))
-    print(f"✅ Кастомный датасет: {len(samples)} видео для {len(glosses)} классов")
+    print(f"Кастомный датасет: {len(samples)} видео для {len(glosses)} классов")
     return samples, glosses
 
 
@@ -336,9 +336,9 @@ def build_dataset(samples: list, glosses: list):
     need_extraction = cached < len(samples)
 
     if need_extraction:
-        print(f"📦 Кэш: {cached}/{len(samples)} — извлекаю кейпоинты ...")
+        print(f"Кэш: {cached}/{len(samples)} — извлекаю кейпоинты ...")
     else:
-        print(f"✅ Все {cached} кейпоинтов в кэше — загружаю ...")
+        print(f"Все {cached} кейпоинтов в кэше — загружаю ...")
 
     X, y_labels, failed = [], [], 0
 
@@ -358,12 +358,12 @@ def build_dataset(samples: list, glosses: list):
                 y_labels.append(gloss)
 
     if failed:
-        print(f"⚠️  Пропущено {failed} видео")
+        print(f"Пропущено {failed} видео")
 
     X     = np.array(X, dtype=np.float32)
     y_enc = le.transform(y_labels)
 
-    print(f"✅ Датасет готов: X={X.shape}  классов={len(glosses)}")
+    print(f"Датасет готов: X={X.shape}  классов={len(glosses)}")
     return X, y_enc, le
 
 def train_epoch(model, loader, optimizer, criterion):
@@ -415,11 +415,11 @@ def main():
     extra_glosses = [g for g in custom_glosses if g not in wlasl_glosses]
     all_glosses = wlasl_glosses + extra_glosses
     all_samples = wlasl_samples + custom_samples
-    print(f"📦 Всего после объединения: {len(all_samples)} видео, {len(all_glosses)} классов")
+    print(f"Всего после объединения: {len(all_samples)} видео, {len(all_glosses)} классов")
 
     X, y_enc, le = build_dataset(all_samples, all_glosses)
     np.save("label_classes.npy", le.classes_)
-    print("💾 label_classes.npy сохранён")
+    print("label_classes.npy сохранён")
 
     num_classes = len(all_glosses)
 
@@ -446,7 +446,7 @@ def main():
                                   patience=7, min_lr=1e-6)
     criterion = nn.CrossEntropyLoss()
 
-    print(f"🧠 Параметров: {sum(p.numel() for p in model.parameters()):,}\n")
+    print(f"Параметров: {sum(p.numel() for p in model.parameters()):,}\n")
 
     best_val_acc = 0.0
     patience_cnt = 0
@@ -464,27 +464,27 @@ def main():
             best_val_acc = vl_acc
             torch.save({"epoch": epoch, "model_state": model.state_dict(),
                         "val_acc": vl_acc, "num_classes": num_classes}, "best_wlasl_lstm.pt")
-            print("  ✅ сохранено")
+            print("  сохранено")
             patience_cnt = 0
         else:
             print()
             patience_cnt += 1
             if patience_cnt >= PATIENCE:
-                print(f"\n⏹️  Early stopping на эпохе {epoch}")
+                print(f"\nEarly stopping на эпохе {epoch}")
                 break
 
     # Финальный тест
     ckpt = torch.load("best_wlasl_lstm.pt", map_location=DEVICE)
     model.load_state_dict(ckpt["model_state"])
     ts_loss, ts_acc, ts_top5 = eval_epoch(model, test_loader, criterion)
-    print(f"\n📊 Тест:")
+    print("\nТест:")
     print(f"   Loss      : {ts_loss:.4f}")
     print(f"   Top-1 Acc : {ts_acc * 100:.1f}%")
     print(f"   Top-5 Acc : {ts_top5 * 100:.1f}%")
 
     torch.save({"model_state": model.state_dict(), "num_classes": num_classes,
                 "input_size": NUM_FEATURES, "seq_len": SEQUENCE_LEN}, "wlasl_lstm_final.pt")
-    print("\n✅ Модель сохранена → wlasl_lstm_final.pt")
+    print("\nМодель сохранена: wlasl_lstm_final.pt")
 
 
 def predict_video(video_path, model_path="best_wlasl_lstm.pt"):

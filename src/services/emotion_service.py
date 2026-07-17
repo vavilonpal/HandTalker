@@ -48,7 +48,7 @@ class EmotionService:
         """
         self.sample_fps = sample_fps
 
-    # ------------------------------------------------------------------
+    #
     def analyze(self, video_path: str) -> dict:
         """
         Analyze emotion throughout the video.
@@ -77,11 +77,11 @@ class EmotionService:
                 "timeline":         [],
             }
 
-        # ── Dominant emotion: majority vote across all sampled frames ──
+        # Dominant emotion: majority vote across all sampled frames
         emotion_votes   = Counter(frame["dominant_emotion"] for frame in timeline)
         dominant        = emotion_votes.most_common(1)[0][0]
 
-        # ── Average scores per emotion ──────────────────────────────────
+        # Average scores per emotion
         all_keys        = timeline[0]["emotions"].keys()
         emotion_scores  = {
             key: round(

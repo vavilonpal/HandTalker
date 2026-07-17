@@ -8,7 +8,7 @@ from deepface import DeepFace
 from pathlib import Path
 
 
-# ─── Конфигурация ────────────────────────────────────────────────────────────
+# Конфигурация
 
 VIDEO_PATH  = "happy-video.mp4"
 SAMPLE_FPS  = 1.0                 # кадров в секунду для анализа (0.5 / 1 / 2)
@@ -25,7 +25,7 @@ EMOTION_COLORS = {
 }
 
 
-# ─── JSON-энкодер для numpy-типов ────────────────────────────────────────────
+# JSON-энкодер для numpy-типов
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -38,7 +38,7 @@ class NumpyEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-# ─── Анализ видео ─────────────────────────────────────────────────────────────
+# Анализ видео
 
 def analyze_video(video_path: str, sample_fps: float = 1.0) -> list[dict]:
     """
@@ -104,7 +104,7 @@ def analyze_video(video_path: str, sample_fps: float = 1.0) -> list[dict]:
             })
 
             analyzed += 1
-            bar = "█" * int(20 * frame_idx / total_frames) + "░" * (20 - int(20 * frame_idx / total_frames))
+            bar = "*" * int(20 * frame_idx / total_frames) + "*" * (20 - int(20 * frame_idx / total_frames))
             print(f"  [{bar}] {timestamp:.1f}s → {dominant}", end="\r")
 
         frame_idx += 1
@@ -114,7 +114,7 @@ def analyze_video(video_path: str, sample_fps: float = 1.0) -> list[dict]:
     return results
 
 
-# ─── Сохранение результатов ───────────────────────────────────────────────────
+# Сохранение результатов
 
 def save_results(results: list[dict], output_dir: str = OUTPUT_DIR) -> pd.DataFrame:
     """Сохраняет results в JSON и CSV, возвращает DataFrame."""
@@ -141,7 +141,7 @@ def save_results(results: list[dict], output_dir: str = OUTPUT_DIR) -> pd.DataFr
     return df
 
 
-# ─── Построение графика ───────────────────────────────────────────────────────
+# Построение графика
 
 def plot_timeline(df: pd.DataFrame, output_dir: str = OUTPUT_DIR):
     """
@@ -159,7 +159,7 @@ def plot_timeline(df: pd.DataFrame, output_dir: str = OUTPUT_DIR):
     )
     fig.patch.set_facecolor("#0f0f0f")
 
-    # ── Верхняя полоска: доминирующая эмоция ──────────────────────────────
+    # Верхняя полоска: доминирующая эмоция
     ax1 = axes[0]
     ax1.set_facecolor("#0f0f0f")
 
@@ -198,7 +198,7 @@ def plot_timeline(df: pd.DataFrame, output_dir: str = OUTPUT_DIR):
         ncol=7,
     )
 
-    # ── Нижний график: стекированные вероятности ───────────────────────────
+    # Нижний график: стекированные вероятности
     ax2 = axes[1]
     ax2.set_facecolor("#0f0f0f")
 
@@ -238,7 +238,7 @@ def plot_timeline(df: pd.DataFrame, output_dir: str = OUTPUT_DIR):
     print(f"  График сохранён: {png_path}")
 
 
-# ─── Краткая сводка ───────────────────────────────────────────────────────────
+# Краткая сводка
 
 def print_summary(df: pd.DataFrame):
     """Выводит краткую статистику по видео."""
@@ -247,7 +247,7 @@ def print_summary(df: pd.DataFrame):
     counts = df["dominant"].value_counts()
     for emotion, count in counts.items():
         pct   = count / total * 100
-        bar   = "█" * int(pct / 5)
+        bar   = "*" * int(pct / 5)
         color_name = emotion.ljust(10)
         print(f"  {color_name} {bar:<20} {pct:5.1f}%")
     print(f"\n  Длительность  : {df['timestamp'].iloc[-1]:.1f} сек")
@@ -255,7 +255,7 @@ def print_summary(df: pd.DataFrame):
     print("  ────────────────────────────────────────────")
 
 
-# ─── Точка входа ──────────────────────────────────────────────────────────────
+# Точка входа
 
 if __name__ == "__main__":
     print(f"\n{'─'*50}")
@@ -272,4 +272,4 @@ if __name__ == "__main__":
 
     print_summary(df)
 
-    print(f"\n✓ Всё готово! Результаты в папке: {OUTPUT_DIR}/\n")
+    print(f"\nВсё готово. Результаты в папке: {OUTPUT_DIR}/\n")
